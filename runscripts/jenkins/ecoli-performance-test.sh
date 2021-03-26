@@ -1,9 +1,10 @@
-module load wcEcoli/sherlock2
-pyenv local wcEcoli-paper
+module load wcEcoli/python3
+pyenv local wcEcoli3
 
 make clean
 make compile
 
 set -e
 
-PYTHONPATH=$PWD:$PYTHONPATH nosetests -a 'performance' --with-xunit --with-coverage --cover-package=wholecell --cover-xml
+# Running it this way prints all timing measurements:
+python -m wholecell.tests.utils.test_library_performance

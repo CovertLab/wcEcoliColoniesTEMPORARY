@@ -1,4 +1,9 @@
-from distutils.core import setup
+from __future__ import absolute_import, division, print_function
+
+# noinspection PyUnresolvedReferences
+from distutils.core import setup# , Extension
+# from distutils.sysconfig import get_python_inc
+
 from Cython.Build import cythonize
 
 import numpy as np
@@ -25,7 +30,8 @@ import os
 # 	)
 
 build_sequences_module = cythonize(
-	os.path.join("wholecell", "utils", "_build_sequences.pyx")
+	os.path.join("wholecell", "utils", "_build_sequences.pyx"),
+	# annotate=True,
 	)
 
 setup(
@@ -35,7 +41,8 @@ setup(
 	)
 
 complexation_module = cythonize(
-	os.path.join("wholecell", "utils", "mc_complexation.pyx")
+	os.path.join("wholecell", "utils", "mc_complexation.pyx"),
+	# annotate=True,
 	)
 
 setup(

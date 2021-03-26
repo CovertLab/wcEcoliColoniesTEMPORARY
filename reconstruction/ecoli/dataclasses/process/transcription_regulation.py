@@ -1,63 +1,89 @@
 """
-Transcription regulation.
+SimulationData for transcription regulation
+
 """
-import numpy as np
+
+from __future__ import absolute_import, division, print_function
+
 
 class TranscriptionRegulation(object):
+	"""
+	SimulationData for transcription regulation
+	"""
 	def __init__(self, raw_data, sim_data):
 		# Build lookups
-		self._buildLookups(raw_data, sim_data)
+		self._build_lookups(raw_data)
+
+		# Store list of transcription factor IDs
+		self.tf_ids = list(sorted(sim_data.tf_to_active_inactive_conditions.keys()))
 
 		# Build dictionary mapping transcription factors to their Kds
-		self.tfKd = {}
-		mRNASet = set([x["id"].encode("utf-8") for x in raw_data.rnas if x["type"] != "rRNA" and x["type"] != "tRNA"])
-		for D in raw_data.foldChanges:
-			self.tfKd[self.abbrToActiveId[D["TF"].encode("utf-8")][0]] = D["kd"]
+		self.tf_Kd = {}
+
+		mRNASet = {
+			x["id"]
+			for x in raw_data.rnas
+			if x["type"] not in ("rRNA", "tRNA")}
+
+		for D in raw_data.fold_changes:
+			self.tf_Kd[self.abbr_to_active_id[D["TF"]][0]] = D["kd"]
 
 		# Build dictionary mapping RNA targets to its regulators
-		self.targetTf = {}
-		for tf in sim_data.tfToFC:
-			targets = sim_data.tfToFC[tf]
+		self.target_tf = {}
+
+		for tf in sorted(sim_data.tf_to_fold_change):
+			targets = sim_data.tf_to_fold_change[tf]
 			targetsToRemove = []
+
 			for target in targets:
 				if target not in mRNASet:
 					targetsToRemove.append(target)
 					continue
-				if target not in self.targetTf:
-					self.targetTf[target] = []
-				self.targetTf[target].append(tf)
+
+				if target not in self.target_tf:
+					self.target_tf[target] = []
+
+				self.target_tf[target].append(tf)
+
 			for targetToRemove in targetsToRemove:
-				sim_data.tfToFC[tf].pop(targetToRemove)
+				sim_data.tf_to_fold_change[tf].pop(targetToRemove)
 
-		# Build dictionaries mapping transcription factors to the number of its targets, 
-		# active transcription factors to their bound form, and transcription factors to their regulating type
-		self.tfNTargets = dict([(key, len(val)) for key,val in sim_data.tfToFC.iteritems()])
-		self.activeToBound = dict([(x["active TF"].encode("utf-8"), x["metabolite bound form"].encode("utf-8")) for x in raw_data.tfOneComponentBound])
-		self.tfToTfType = dict([(x["active TF"].encode("utf-8"), x["TF type"].encode("utf-8")) for x in raw_data.condition.tf_condition])
-		return
+		# Build dictionaries mapping transcription factors to their bound form,
+		# and to their regulating type
+		self.active_to_bound = {
+			x["active TF"]: x["metabolite bound form"]
+			for x in raw_data.tf_one_component_bound}
+		self.tf_to_tf_type = {
+			x["active TF"]: x["TF type"]
+			for x in raw_data.condition.tf_condition}
 
-	def pPromoterBoundTF(self, tfActive, tfInactive):
-		'''
+	def p_promoter_bound_tf(self, tfActive, tfInactive):
+		"""
 		Computes probability of a transcription factor binding promoter.
-		'''
+		"""
 		return float(tfActive) / (float(tfActive) + float(tfInactive))
 
-	def pPromoterBoundSKd(self, signal, Kd, power):
-		'''
-		Computes probability of a one-component transcription factor binding promoter.
-		'''
+	def p_promoter_bound_SKd(self, signal, Kd, power):
+		"""
+		Computes probability of a one-component transcription factor binding
+		promoter.
+		"""
 		return float(signal)**power / (float(signal)**power + float(Kd))
 
-	def _buildLookups(self, raw_data, sim_data):
-		'''
-		Builds dictionaries for mapping transcription factor abbreviations to their RNA IDs, and to their active form.
-		'''
-		geneIdToRnaId = dict([(x["geneId"].encode("utf-8"), x["id"].encode("utf-8")) for x in raw_data.rnas])
+	def _build_lookups(self, raw_data):
+		"""
+		Builds dictionaries for mapping transcription factor abbreviations to
+		their RNA IDs, and to their active form.
+		"""
+		geneIdToRnaId = {x["id"]: x['rna_id'] for x in raw_data.genes}
 
-		self.abbrToRnaId = {}
-		for lookupInfo in raw_data.tfIds:
+		self.abbr_to_rna_id = {}
+		for lookupInfo in raw_data.transcription_factors:
 			if len(lookupInfo["geneId"]) == 0:
 				continue
-			self.abbrToRnaId[lookupInfo["TF"].encode("utf-8")] = geneIdToRnaId[lookupInfo["geneId"].encode("utf-8")]
+			self.abbr_to_rna_id[lookupInfo["TF"]] = geneIdToRnaId[lookupInfo["geneId"]]
 
-		self.abbrToActiveId = dict([(x["TF"].encode("utf-8"), x["activeId"].encode("utf-8").split(", ")) for x in raw_data.tfIds if len(x["activeId"]) > 0])
+		self.abbr_to_active_id = {
+			x["TF"]: x["activeId"].split(", ")
+			for x in raw_data.transcription_factors
+			if len(x["activeId"]) > 0}

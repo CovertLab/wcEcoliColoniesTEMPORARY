@@ -1,32 +1,23 @@
 """
 Template for multigen analysis plots
-
-@organization: Covert Lab, Department of Bioengineering, Stanford University
-@date: Created 8/2/18
 """
 
-from __future__ import absolute_import
-from __future__ import division
+from __future__ import absolute_import, division, print_function
 
-import cPickle
+from six.moves import cPickle
+import os
+
 from matplotlib import pyplot as plt
 import numpy as np
-import os
 
 from models.ecoli.analysis import multigenAnalysisPlot
 from models.ecoli.analysis.AnalysisPaths import AnalysisPaths
-from wholecell.analysis.analysis_tools import exportFigure
+from wholecell.analysis.analysis_tools import exportFigure, read_bulk_molecule_counts
 from wholecell.io.tablereader import TableReader
-from wholecell.utils import filepath
 
 
 class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 	def do_plot(self, seedOutDir, plotOutDir, plotOutFileName, simDataFile, validationDataFile, metadata):
-		if not os.path.isdir(seedOutDir):
-			raise Exception, 'seedOutDir does not currently exist as a directory'
-
-		filepath.makedirs(plotOutDir)
-
 		with open(simDataFile, 'rb') as f:
 			sim_data = cPickle.load(f)
 		with open(validationDataFile, 'rb') as f:
@@ -43,10 +34,14 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			# Load data
 			time = main_reader.readColumn('time')
 
+			names = ['ATP[c]']  # Replace with desired list of names
+			(counts,) = read_bulk_molecule_counts(simOutDir, (names,))
+
 		plt.figure()
 
 		### Create Plot ###
 
+		plt.tight_layout()
 		exportFigure(plt, plotOutDir, plotOutFileName, metadata)
 		plt.close('all')
 

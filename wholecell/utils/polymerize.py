@@ -8,23 +8,20 @@ profile. It @profile-decorates polymerize().
 
 TODO:
 - document algorithm/corner cases (should already exist somewhere...)
-
-@author: John Mason
-@organization: Covert Lab, Department of Bioengineering, Stanford University
-@date: Created 5/23/14
 """
 
-from __future__ import absolute_import
-from __future__ import division
+from __future__ import absolute_import, division, print_function
 
 import numpy as np
 
 from ._build_sequences import buildSequences, computeMassIncrease
 from ._fastsums import sum_monomers, sum_monomers_reference_implementation
+from six.moves import range
 
-# Reexport _build_sequences functions. (Declaring this avoids
-# "unused import statement" warnings.)
-__all__ = ['polymerize', 'buildSequences', 'computeMassIncrease']
+# Reexport these Cython functions. Declaring them avoids
+# "unused import statement" warnings.
+__all__ = ['polymerize', 'buildSequences', 'computeMassIncrease',
+	'sum_monomers_reference_implementation']
 
 def sample_array(array):
 	samples = np.random.random(array.shape)
@@ -34,6 +31,9 @@ def choices(array, n):
 	indexes = np.arange(array.shape[0])
 	np.random.shuffle(indexes)
 	return indexes[:n]
+
+class DimensionException(Exception):
+	pass
 
 class polymerize(object): # Class name is lowercase because interface is function-like
 	"""
@@ -68,6 +68,10 @@ class polymerize(object): # Class name is lowercase because interface is functio
 			randomState,
 			elongation_rates,
 			variable_elongation=False):
+
+		# Check dimensions
+		if sequences.shape[0] != len(elongation_rates):
+			raise DimensionException('Dimensions of input sequences and elongation rates do not match.')
 
 		# Gather inputs
 		self._sequences = sequences
@@ -127,7 +131,7 @@ class polymerize(object): # Class name is lowercase because interface is functio
 		self._sequenceMonomers = np.empty(
 			(self._nMonomers, self._nSequences, self._sequenceLength),
 			dtype = np.bool)
-		for monomerIndex in xrange(self._nMonomers):
+		for monomerIndex in range(self._nMonomers):
 			self._sequenceMonomers[monomerIndex, ...] = (
 				self._sequences == monomerIndex)
 

@@ -1,19 +1,15 @@
 """
 Plot trp regulation
-
-@author: Derek Macklin
-@organization: Covert Lab, Department of Bioengineering, Stanford University
-@date: Created 6/17/2016
 """
 
-from __future__ import absolute_import
-from __future__ import division
+from __future__ import absolute_import, division, print_function
 
 import os
 
 import numpy as np
 from matplotlib import pyplot as plt
-import cPickle
+import six
+from six.moves import cPickle, range
 
 from wholecell.io.tablereader import TableReader
 from wholecell.utils import units
@@ -24,27 +20,24 @@ from models.ecoli.analysis import multigenAnalysisPlot
 
 class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 	def do_plot(self, seedOutDir, plotOutDir, plotOutFileName, simDataFile, validationDataFile, metadata):
-		if not os.path.isdir(seedOutDir):
-			raise Exception, "seedOutDir does not currently exist as a directory"
-
-		if not os.path.exists(plotOutDir):
-			os.mkdir(plotOutDir)
-
 		ap = AnalysisPaths(seedOutDir, multi_gen_plot = True)
 
 		allDirs = ap.get_cells()
 
 		# Load data from KB
 		sim_data = cPickle.load(open(simDataFile, "rb"))
-		nAvogadro = sim_data.constants.nAvogadro
-		cellDensity = sim_data.constants.cellDensity
+		nAvogadro = sim_data.constants.n_avogadro
+		cellDensity = sim_data.constants.cell_density
 
-		recruitmentColNames = sim_data.process.transcription_regulation.recruitmentColNames
-		tfs = sorted(set([x.split("__")[-1] for x in recruitmentColNames if x.split("__")[-1] != "alpha"]))
-		trpRIndex = [i for i, tf in enumerate(tfs) if tf == "CPLX-125"][0]
+		# Get list of TF and transcription unit IDs from first simOut directory
+		simOutDir = os.path.join(allDirs[0], "simOut")
+		rna_synth_prob_reader = TableReader(os.path.join(simOutDir, "RnaSynthProb"))
+		tf_ids = rna_synth_prob_reader.readAttribute("tf_ids")
+		rna_ids = rna_synth_prob_reader.readAttribute("rnaIds")
 
-		tfBoundIds = [target + "__CPLX-125" for target in sim_data.tfToFC["CPLX-125"].keys()]
-		synthProbIds = [target + "[c]" for target in sim_data.tfToFC["CPLX-125"].keys()]
+		trpRIndex = tf_ids.index("CPLX-125")
+		target_ids = six.viewkeys(sim_data.tf_to_fold_change["CPLX-125"])
+		target_idx = np.array([rna_ids.index(target_id + "[c]") for target_id in target_ids])
 
 		plt.figure(figsize = (10, 15))
 		nRows = 10
@@ -52,7 +45,7 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 		for simDir in allDirs:
 			simOutDir = os.path.join(simDir, "simOut")
 			# Load time
-			initialTime = 0#TableReader(os.path.join(simOutDir, "Main")).readAttribute("initialTime")
+			initialTime = 0  # TableReader(os.path.join(simOutDir, "Main")).readAttribute("initialTime")
 			time = TableReader(os.path.join(simOutDir, "Main")).readColumn("time") - initialTime
 
 			# Load mass data
@@ -61,17 +54,27 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			massReader = TableReader(os.path.join(simOutDir, "Mass"))
 			cellMass = units.fg * massReader.readColumn("cellMass")
 			proteinMass = units.fg * massReader.readColumn("proteinMass")
-			massReader.close()
 
 			# Load data from ribosome data listener
 			ribosomeDataReader = TableReader(os.path.join(simOutDir, "RibosomeData"))
 			nTrpATranslated = ribosomeDataReader.readColumn("numTrpATerminated")
-			ribosomeDataReader.close()
 
 			# Load data from bulk molecules
 			bulkMoleculesReader = TableReader(os.path.join(simOutDir, "BulkMolecules"))
 			bulkMoleculeIds = bulkMoleculesReader.readAttribute("objectNames")
 			bulkMoleculeCounts = bulkMoleculesReader.readColumn("counts")
+
+			# Load data from mRNA counts listener
+			mRNA_counts_reader = TableReader(
+				os.path.join(simOutDir, 'mRNACounts'))
+			all_mRNA_ids = mRNA_counts_reader.readAttribute('mRNA_ids')
+			mRNA_counts = mRNA_counts_reader.readColumn('mRNA_counts')
+
+			# Load data from RnaSynthProb listener
+			rna_synth_prob_reader = TableReader(
+				os.path.join(simOutDir, "RnaSynthProb"))
+			n_bound_TF_per_TU = rna_synth_prob_reader.readColumn(
+				"n_bound_TF_per_TU").reshape((-1, len(rna_ids), len(tf_ids)))
 
 			# Get the concentration of intracellular trp
 			trpId = ["TRP[c]"]
@@ -97,8 +100,7 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			trpRMonomerCounts = bulkMoleculeCounts[:, trpRMonomerIndex].reshape(-1)
 
 			# Get the promoter-bound status for all regulated genes
-			tfBoundIndex = np.array([bulkMoleculeIds.index(x) for x in tfBoundIds])
-			tfBoundCounts = bulkMoleculeCounts[:, tfBoundIndex]
+			tfBoundCounts = n_bound_TF_per_TU[:, target_idx, trpRIndex]
 
 			# Get the amount of monomeric trpA
 			trpAProteinId = ["TRYPSYN-APROTEIN[c]"]
@@ -112,10 +114,8 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 
 			# Get the amount of trpA mRNA
 			trpARnaId = ["EG11024_RNA[c]"]
-			trpARnaIndex = np.array([bulkMoleculeIds.index(x) for x in trpARnaId])
-			trpARnaCounts = bulkMoleculeCounts[:, trpARnaIndex].reshape(-1)
-
-			bulkMoleculesReader.close()
+			trpARnaIndex = np.array([all_mRNA_ids.index(x) for x in trpARnaId])
+			trpARnaCounts = mRNA_counts[:, trpARnaIndex].reshape(-1)
 
 			# Compute total counts and concentration of trpA in monomeric and complexed form
 			# (we know the stoichiometry)
@@ -128,22 +128,18 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			trpARnaConcentration = trpARnaMols * 1. / volume
 
 			# Compute the trpA mass in the cell
-			trpAMw = sim_data.getter.getMass(trpAProteinId)
+			trpAMw = sim_data.getter.get_masses(trpAProteinId)
 			trpAMass = 1. / nAvogadro * trpAProteinTotalCounts * trpAMw
 
 			# Compute the proteome mass fraction
 			proteomeMassFraction = trpAMass.asNumber(units.fg) / proteinMass.asNumber(units.fg)
 
 			# Get the synthesis probability for all regulated genes
-			rnaSynthProbReader = TableReader(os.path.join(simOutDir, "RnaSynthProb"))
+			synthProbs = rna_synth_prob_reader.readColumn("rnaSynthProb")[:, target_idx]
 
-			rnaIds = rnaSynthProbReader.readAttribute("rnaIds")
-			synthProbIndex = np.array([rnaIds.index(x) for x in synthProbIds])
-			synthProbs = rnaSynthProbReader.readColumn("rnaSynthProb")[:, synthProbIndex]
+			trpRBound = rna_synth_prob_reader.readColumn("nActualBound")[:,trpRIndex]
 
-			trpRBound = rnaSynthProbReader.readColumn("nActualBound")[:,trpRIndex]
-
-			rnaSynthProbReader.close()
+			rna_synth_prob_reader.close()
 
 			# Calculate total trpR - active, inactive, bound and monomeric
 			trpRTotalCounts = 2 * (trpRActiveCounts + trpRInactiveCounts + trpRBound) + trpRMonomerCounts
@@ -158,8 +154,8 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 
 
 			##############################################################
-			ax = plt.subplot(nRows, 1, 1)
-			ax.plot(time, trpConcentration.asNumber(units.umol / units.L), color = '#0d71b9')
+			ax = self.subplot(nRows, 1, 1)
+			ax.plot(time, trpConcentration.asNumber(units.umol / units.L), color = "b")
 			plt.ylabel("Internal TRP Conc. [uM]", fontsize = 6)
 
 			ymin, ymax = ax.get_ylim()
@@ -173,7 +169,7 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			##############################################################
 
 			##############################################################
-			ax = plt.subplot(nRows, 1, 2)
+			ax = self.subplot(nRows, 1, 2)
 			ax.plot(time, trpRActiveCounts)
 			ax.plot(time, trpRInactiveCounts)
 			ax.plot(time, trpRTotalCounts)
@@ -191,9 +187,8 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			##############################################################
 
 			##############################################################
-			ax = plt.subplot(nRows, 1, 3)
-			ax.plot(time, tfBoundCountsMA, color = '#0d71b9')
-			#comment out color in order to see colors per generation
+			ax = self.subplot(nRows, 1, 3)
+			ax.plot(time, tfBoundCountsMA)
 			plt.ylabel("TrpR Bound To Promoters\n(Moving Average)", fontsize = 6)
 
 			ymin, ymax = ax.get_ylim()
@@ -207,7 +202,7 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			##############################################################
 
 			##############################################################
-			ax = plt.subplot(nRows, 1, 4)
+			ax = self.subplot(nRows, 1, 4)
 			ax.plot(time, synthProbsMA)
 			plt.ylabel("Regulated Gene Synthesis Prob.\n(Moving Average)", fontsize = 6)
 
@@ -222,8 +217,8 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			##############################################################
 
 			##############################################################
-			ax = plt.subplot(nRows, 1, 5)
-			ax.plot(time, trpAProteinTotalCounts, color = '#0d71b9')
+			ax = self.subplot(nRows, 1, 5)
+			ax.plot(time, trpAProteinTotalCounts, color = "b")
 			plt.ylabel("TrpA Counts", fontsize = 6)
 
 			ymin, ymax = ax.get_ylim()
@@ -237,8 +232,8 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			##############################################################
 
 			##############################################################
-			ax = plt.subplot(nRows, 1, 6)
-			ax.plot(time, trpAProteinTotalConcentration.asNumber(units.umol / units.L), color = '#0d71b9')
+			ax = self.subplot(nRows, 1, 6)
+			ax.plot(time, trpAProteinTotalConcentration.asNumber(units.umol / units.L), color = "b")
 			plt.ylabel("TrpA Concentration", fontsize = 6)
 
 			ymin, ymax = ax.get_ylim()
@@ -252,8 +247,8 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			##############################################################
 
 			##############################################################
-			ax = plt.subplot(nRows, 1, 7)
-			ax.plot(time, trpARnaCounts, color = '#0d71b9')
+			ax = self.subplot(nRows, 1, 7)
+			ax.plot(time, trpARnaCounts, color = "b")
 			plt.ylabel("TrpA mRNA Counts", fontsize = 6)
 
 			ymin, ymax = ax.get_ylim()
@@ -267,8 +262,8 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			##############################################################
 
 			##############################################################
-			ax = plt.subplot(nRows, 1, 8)
-			ax.plot(time, trpARnaConcentration.asNumber(units.umol / units.L), color = '#0d71b9')
+			ax = self.subplot(nRows, 1, 8)
+			ax.plot(time, trpARnaConcentration.asNumber(units.umol / units.L), color = "b")
 			plt.ylabel("TrpA mRNA Concentration", fontsize = 6)
 
 			ymin, ymax = ax.get_ylim()
@@ -282,8 +277,8 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			##############################################################
 
 			##############################################################
-			ax = plt.subplot(nRows, 1, 9)
-			ax.plot(time / 3600., proteomeMassFraction, color = '#0d71b9')
+			ax = self.subplot(nRows, 1, 9)
+			ax.plot(time / 3600., proteomeMassFraction, color = "b")
 			plt.ylabel("TrpA MAss FRaction of Proteome", fontsize = 6)
 
 			ymin, ymax = ax.get_ylim()
@@ -297,8 +292,8 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			##############################################################
 
 			##############################################################
-			ax = plt.subplot(nRows, 1, 10)
-			ax.plot(time, nTrpATranslated, color = '#0d71b9')
+			ax = self.subplot(nRows, 1, 10)
+			ax.plot(time, nTrpATranslated, color = "b")
 			plt.ylabel("Number of TrpA translation events", fontsize = 6)
 
 			ymin, ymax = ax.get_ylim()

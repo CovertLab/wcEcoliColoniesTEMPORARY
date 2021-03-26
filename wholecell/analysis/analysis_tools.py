@@ -2,82 +2,132 @@
 Analysis script toolbox functions
 """
 
+from __future__ import absolute_import, division, print_function
+
 import os
+from typing import Iterator, Sequence, Tuple, Union
 
 import numpy as np
 
 from wholecell.io.tablereader import TableReader
 from wholecell.utils import filepath
+from wholecell.utils.py3 import ANY_STRING
 
 LOW_RES_DIR = 'low_res_plots'
 SVG_DIR = 'svg_plots'
 HTML_DIR = 'html_plots'
 LOW_RES_DPI = 120
-DEFAULT_IMAGE_TYPE = '.pdf'
 
-def exportFigure(plt, plotOutDir, plotOutFileName, metadata=None, transparent = False):
 
-	if metadata != None and "analysis_type" in metadata:
-		if metadata["analysis_type"] == 'single':
+def exportFigure(plt, plotOutDir, plotOutFileName, metadata=None, transparent=False,
+        dpi=LOW_RES_DPI, extension=None):
+
+	if metadata is not None and "analysis_type" in metadata:
+		analysis_type = metadata["analysis_type"]
+
+		if analysis_type == 'single':
 			# Format metadata signature for single gen figure
-			metadata_signature = "_".join([str(metadata["time"])[:13],
-					str(metadata["variant_function"]),
-					str(metadata["variant_index"]),
-					"Seed", str(metadata["seed"]),
-					"Gen", str(metadata["gen"])+'/'+str(int(metadata["total_gens"])-1),
-					"Githash", str(metadata["git_hash"])[:10],
-					"Desc", str(metadata["description"])])
-		elif metadata["analysis_type"] == 'multigen':
+			metadata_signature = "_".join([
+				str(metadata["time"])[:13],
+				str(metadata["variant_function"]),
+				str(metadata["variant_index"]),
+				"Seed",
+				str(metadata["seed"]),
+				"Gen",
+				str(metadata["gen"]) + '/' + str(int(metadata["total_gens"]) - 1),
+				"Githash",
+				str(metadata["git_hash"])[:10],
+				"Desc",
+				str(metadata["description"])
+				])
+
+		elif analysis_type == 'multigen':
 			# Format metadata signature for multi gen figure
-			metadata_signature = "_".join([str(metadata["time"][:13]),
-					str(metadata["variant_function"]),
-					str(metadata["variant_index"]),
-					"Seed", str(metadata["seed"]),
-					str(metadata["total_gens"]), "gens",
-					"Githash", str(metadata["git_hash"])[:10],
-					"Desc", str(metadata["description"])])
-		elif metadata["analysis_type"] == 'cohort':
+			metadata_signature = "_".join([
+				str(metadata["time"][:13]),
+				str(metadata["variant_function"]),
+				str(metadata["variant_index"]),
+				"Seed",
+				str(metadata["seed"]),
+				str(metadata["total_gens"]),
+				"gens",
+				"Githash",
+				str(metadata["git_hash"])[:10],
+				"Desc",
+				str(metadata["description"])
+				])
+
+		elif analysis_type == 'cohort':
 			# Format metadata signature for cohort figure
-			metadata_signature = "_".join([str(metadata["time"][:13]),
-					str(metadata["variant_function"]),
-					str(metadata["variant_index"]),
-					str(metadata["total_gens"]), "gens",
-					"Githash", str(metadata["git_hash"])[:10],
-					"Desc", str(metadata["description"])])
-		elif metadata["analysis_type"] == 'variant':
+			metadata_signature = "_".join([
+				str(metadata["time"][:13]),
+				str(metadata["variant_function"]),
+				str(metadata["variant_index"]),
+				str(metadata["total_gens"]),
+				"gens",
+				"Githash",
+				str(metadata["git_hash"])[:10],
+				"Desc",
+				str(metadata["description"])
+				])
+
+		elif analysis_type == 'variant':
 			# Format metadata signature for variant figure
-			metadata_signature = "_".join([str(metadata["time"][:13]),
-					str(metadata["total_variants"]), "variants",
-					str(metadata["total_gens"]), "gens",
-					"Githash", str(metadata["git_hash"])[:10],
-					"Desc", str(metadata["description"])])
+			metadata_signature = "_".join([
+				str(metadata["time"][:13]),
+				str(metadata["total_variants"]),
+				"variants",
+				str(metadata["total_gens"]),
+				"gens",
+				"Githash",
+				str(metadata["git_hash"])[:10],
+				"Desc",
+				str(metadata["description"])
+				])
+
+		elif analysis_type == 'parca':
+			# Format metadata signature for parca figure
+			metadata_signature = "_".join([
+				str(metadata["time"][:13]),
+				"Githash",
+				str(metadata["git_hash"])[:10],
+				"Desc",
+				str(metadata["description"])
+				])
+
+		else:
+			raise ValueError('Unknown analysis_type {}'.format(analysis_type))
 
 		# Add metadata signature to the bottom of the plot
+		# Don't accidentally trigger $TeX formatting$.
+		metadata_signature = metadata_signature.replace('$', '')
 		plt.figtext(0,0, metadata_signature, size=8)
 
 	# Make folders for holding alternate types of images
 	filepath.makedirs(plotOutDir, LOW_RES_DIR)
 	filepath.makedirs(plotOutDir, SVG_DIR)
 
-	# Save PDF image
-	plt.savefig(os.path.join(plotOutDir, plotOutFileName + DEFAULT_IMAGE_TYPE), transparent = transparent)
-
-	# Save SVG image
-	plt.savefig(os.path.join(plotOutDir, SVG_DIR, plotOutFileName + '.svg'), transparent = transparent)
-
-	# Save PNG image
-	plt.savefig(os.path.join(plotOutDir, LOW_RES_DIR, plotOutFileName + '.png'), dpi=LOW_RES_DPI, transparent = transparent)
+	# Save images
+	if extension:
+		# Only save one type in main analysis directory if extension is given
+		plt.savefig(os.path.join(plotOutDir, plotOutFileName + extension), dpi=dpi, transparent=transparent)
+	else:
+		# Save all image types
+		plt.savefig(os.path.join(plotOutDir, plotOutFileName + '.pdf'), transparent=transparent)
+		plt.savefig(os.path.join(plotOutDir, SVG_DIR, plotOutFileName + '.svg'), transparent=transparent)
+		plt.savefig(os.path.join(plotOutDir, LOW_RES_DIR, plotOutFileName + '.png'), dpi=dpi, transparent=transparent)
 
 def read_bulk_molecule_counts(sim_out_dir, mol_names):
+	# type: (str, Union[Tuple[Sequence[str], ...], Sequence[str]]) -> Iterator[np.ndarray]
 	'''
 	Reads a subset of molecule counts from BulkMolecules using the indexing method
 	of readColumn. Should only be called once per simulation being analyzed with
 	all molecules of interest.
 
 	Args:
-		sim_out_dir (str): path to the directory with simulation output data
-		mol_names (list-like or tuple of list-like): lists of strings containing
-			names of molecules to read the counts for. A single array will be
+		sim_out_dir: path to the directory with simulation output data
+		mol_names: tuple of list-likes of strings or a list-like of strings
+			that name molecules to read the counts for. A single array will be
 			converted to a tuple for processing.
 
 	Returns:
@@ -100,14 +150,14 @@ def read_bulk_molecule_counts(sim_out_dir, mol_names):
 	is used for those tables.
 	'''
 
-	# Convert an array to tuple to ensure correct dimensions
+	# Wrap an array in a tuple to ensure correct dimensions
 	if not isinstance(mol_names, tuple):
 		mol_names = (mol_names,)
 
 	# Check for string instead of array since it will cause mol_indices lookup to fail
 	for names in mol_names:
-		if isinstance(names, basestring):
-			raise Exception('mol_names must be a tuple of arrays not strings like {}'.format(names))
+		if isinstance(names, ANY_STRING):
+			raise Exception('mol_names tuple must contain arrays not strings like {!r}'.format(names))
 
 	bulk_reader = TableReader(os.path.join(sim_out_dir, 'BulkMolecules'))
 
@@ -116,7 +166,7 @@ def read_bulk_molecule_counts(sim_out_dir, mol_names):
 
 	lengths = [len(names) for names in mol_names]
 	indices = np.hstack([[mol_indices[mol] for mol in names] for names in mol_names])
-	bulk_counts = bulk_reader.readColumn('counts', indices)
+	bulk_counts = bulk_reader.readColumn2D('counts', indices)
 
 	start_slice = 0
 	for length in lengths:

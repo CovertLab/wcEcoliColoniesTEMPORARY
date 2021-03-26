@@ -13,13 +13,9 @@ EG10104_RNA[c]	5.2	atpG	ATP synthase F1 complex - gamma subunit
 EG10539_RNA[c]	5.3	livJ	Branched chain amino acid ABC transporter - periplasmic binding protein
 
 (sorted from sim_data.transcription.process.rnaData, mrna only, elements in range -125:-115)
-
-@author: Derek Macklin
-@organization: Covert Lab, Department of Bioengineering, Stanford University
-@date: Created 10/29/2015
 """
 
-from __future__ import absolute_import
+from __future__ import absolute_import, division, print_function
 
 import os
 
@@ -29,17 +25,14 @@ from matplotlib import pyplot as plt
 from wholecell.io.tablereader import TableReader
 from wholecell.analysis.analysis_tools import exportFigure
 from models.ecoli.analysis import singleAnalysisPlot
+from six.moves import range
 
 
 class Plot(singleAnalysisPlot.SingleAnalysisPlot):
 	def do_plot(self, simOutDir, plotOutDir, plotOutFileName, simDataFile, validationDataFile, metadata):
-		if not os.path.isdir(simOutDir):
-			raise Exception, "simOutDir does not currently exist as a directory"
-
-		if not os.path.exists(plotOutDir):
-			os.mkdir(plotOutDir)
-
-		bulkMolecules = TableReader(os.path.join(simOutDir, "BulkMolecules"))
+		mRNA_counts_reader = TableReader(os.path.join(simOutDir, 'mRNACounts'))
+		mRNA_counts = mRNA_counts_reader.readColumn('mRNA_counts')
+		all_mRNA_idx = {rna: i for i, rna in enumerate(mRNA_counts_reader.readAttribute('mRNA_ids'))}
 
 		rnaIds = [
 			"EG10789_RNA[c]", "EG11556_RNA[c]", "EG12095_RNA[c]", "G1_RNA[c]", "G360_RNA[c]",
@@ -58,18 +51,16 @@ class Plot(singleAnalysisPlot.SingleAnalysisPlot):
 			"livJ - Branched chain amino acid ABC transporter - periplasmic binding protein",
 		]
 
-		moleculeIds = bulkMolecules.readAttribute("objectNames")
-		rnaIndexes = np.array([moleculeIds.index(x) for x in rnaIds], np.int)
-		rnaCounts = bulkMolecules.readColumn("counts")[:, rnaIndexes]
+		rnaIndexes = np.array([all_mRNA_idx[x] for x in rnaIds], np.int)
+		rnaCounts = mRNA_counts[:, rnaIndexes]
 
-		bulkMolecules.close()
-
-		initialTime = TableReader(os.path.join(simOutDir, "Main")).readAttribute("initialTime")
-		time = TableReader(os.path.join(simOutDir, "Main")).readColumn("time") - initialTime
+		main_reader = TableReader(os.path.join(simOutDir, "Main"))
+		initialTime = main_reader.readAttribute("initialTime")
+		time = main_reader.readColumn("time") - initialTime
 
 		plt.figure(figsize = (8.5, 11))
 
-		for subplotIdx in xrange(1, 10):
+		for subplotIdx in range(1, 10):
 
 			plt.subplot(3, 3, subplotIdx)
 

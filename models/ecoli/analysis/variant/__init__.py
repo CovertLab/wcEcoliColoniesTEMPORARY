@@ -1,28 +1,32 @@
+from __future__ import absolute_import, division, print_function
+
 # Active analysis modules to run, in this order.
 # Tip: Edit this during development to run ones you're working on first.
 ACTIVE = [
 	"adder_sizer.py",
-	"adjusted_deg_rate_proteome.py",
-	"conditionalFlux.py",
-	"distribution_cell_division_time.py",
-	"distribution_division_fluxome_proteome.py",
-	"distribution_fluxome_correlation.py",
-	"distribution_proteome_correlation.py",
 	"doubling_time_histogram.py",
-	"flux_sensitivity.py",
-	"glc_yield.py",
+	"param_sensitivity.py",
+	"meneSensitivity.py",
 	"growth_condition_comparison_validation.py",
-	# "growth_condition_comparison_validation_parallel.py",
 	"growthConditionComparison.py",
-	"kinetic_objective_comparison.py",
-	"kinetic_objective_interactions.py",
 	"massFractionSummary.py",
 	"metabolism_kinetic_objective_weight.py",
-	"param_sensitivity.py",
-	"parameterShuffle.py",
-	"parameterShuffleSplom.py",
-	"subgen_expression.py",
+	"metabolism_secretion_penalty.py",
 	"tfFit.py",
 	"tfFitComparison.py",
-	"tfTarget.py",
+	"time_step.py",
 ]
+
+TAGS = {
+	'ACTIVE': ACTIVE,   # all active analyses in this category
+	'CORE': [           # the default list to run in development
+		"growthConditionComparison.py",
+		],
+	'PAPER': [
+		"adder_sizer.py",
+		"doubling_time_histogram.py",
+		"meneSensitivity.py",
+		"param_sensitivity.py",
+		"growth_condition_comparison_validation.py",
+		],
+	}

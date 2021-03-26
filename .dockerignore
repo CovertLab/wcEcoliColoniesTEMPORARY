@@ -3,6 +3,7 @@
 /.idea
 /docs
 /user
+/stubs
 
 # Compiled source #
 ###################
@@ -29,6 +30,7 @@ coverage.xml
 nosetests.xml
 nosetests.*.xml
 .pytest_cache
+/unittests.xml
 
 # IPython notebook files #
 ##########################
@@ -44,7 +46,9 @@ cached
 
 # Fixtures #
 ############
-/fixtures/
+fixtures/sim/*
+fixtures/kb/*
+fixtures/test/*
 
 # C extensions #
 ################

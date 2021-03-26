@@ -5,16 +5,18 @@ Run with '-h' for command line help.
 Set PYTHONPATH when running this.
 """
 
-from __future__ import absolute_import
-from __future__ import division
+from __future__ import absolute_import, division, print_function
 
-import cPickle
+import argparse
 import os
 import sys
+from typing import Any, Dict, Optional
 
-from wholecell.utils import constants, scriptBase
+from models.ecoli.analysis.analysisPlot import AnalysisPlot
+from wholecell.utils import constants, data, scriptBase, parallelization, filepath
 
 
+# noinspection PyAbstractClass
 class AnalysisBase(scriptBase.ScriptBase):
 	"""Abstract base class for scripts that manually run analysis plots in an
 	existing sim_dir: Defines a `sim_dir` command line parameter and sets some
@@ -23,14 +25,18 @@ class AnalysisBase(scriptBase.ScriptBase):
 	run() is still an abstract method.
 	"""
 
+	OUTPUT_SUBDIR = 'plotOut'  # recommended
+
 	def __init__(self, analysis_plotter=None):
-		"""Instantiate with an optional AnalysisPlot to run (this only uses its
-		filename, not the instance), otherwise run all ACTIVE AnalysisPlots in
-		the subclass' category.
+		# type: (Optional[AnalysisPlot]) -> None
+		"""Instantiate with an optional specific AnalysisPlot to run (this only
+		uses its filename, not the instance), otherwise add the -p option to
+		name the plots in the subclass' category to run, defaulting to the CORE
+		list.
 		"""
 		super(AnalysisBase, self).__init__()
 
-		self.plot_name = None
+		self.plot_name = ''  # falsy => add_argument('-p')
 		if analysis_plotter:
 			module = sys.modules[type(analysis_plotter).__module__]
 			self.plot_name = os.path.basename(module.__file__)
@@ -50,38 +56,52 @@ class AnalysisBase(scriptBase.ScriptBase):
 
 		if not self.plot_name:  # not pre-specified
 			parser.add_argument('-p', '--plot', nargs='+', default=[],
-				help='One or more analysis plot files to run, e.g.'
-					 ' "figure2e.py". The default is to run all ACTIVE plots'
-					 " listed in this category's __init__.py file.")
+				help='''Names the analysis plots to run, e.g. plot filenames
+					like "aaCounts.py" or "aaCounts" and tags like "METABOLISM"
+					as defined in this category's __init__.py file. If omitted,
+					the default is "CORE", which names the plots recommended
+					for everyday development. Use "ACTIVE" to run all active
+					plots in this category.''')
 
-		parser.add_argument('-o', '--output_prefix', default='',
+		parser.add_argument('-o', scriptBase.dashize('--output_prefix'),
+			default='',
 			help='Prefix for all the output plot filenames.')
 
-	def parse_args(self):
-		"""Parse the command line args into an `argparse.Namespace`, including
+		parser.add_argument('-c', '--cpus', type=int, default=1,
+			help='The number of CPU processes to use. The given value will be'
+				 ' limited to the available number of CPU cores. Default = 1.')
+
+		self.define_parameter_bool(parser, 'compile', False,
+			'Compiles output images into one file (only for .png).')
+
+	def select_analysis_keys(self, args):
+		# type: (argparse.Namespace) -> Dict[str, Any]
+		"""Select key/value pairs specific to analysis tasks"""
+		return data.select_keys(vars(args), scriptBase.ANALYSIS_KEYS)
+
+	def update_args(self, args):
+		# type: (argparse.Namespace) -> None
+		"""Update the command line args in an `argparse.Namespace`, including
 		the `sim_dir` and `sim_path` args; sanitize args.plot; attach the
 		`args.input_validation_data` path, the `args.metadata_path` path
-		"<sim_path>/metadata/metadata.cPickle", and the `args.metadata` dict
+		"<sim_path>/metadata/metadata.json", and the `args.metadata` dict
 		loaded from `metadata_path`. If the superclass set `args.variant_dir`,
 		also set `args.variant_dir_name` and metadata fields `variant_function`
 		and `variant_index`.
 
 		Overrides should first call super().
 		"""
-		args = super(AnalysisBase, self).parse_args()
+		super(AnalysisBase, self).update_args(args)
 
 		if self.plot_name:
 			args.plot = [self.plot_name]
-		args.plot = [name if name.endswith('.py') else name + '.py'
-			for name in args.plot]
 
 		args.input_validation_data = os.path.join(
 			args.sim_path, 'kb', constants.SERIALIZED_VALIDATION_DATA)
 
 		args.metadata_path = os.path.join(
-			args.sim_path, 'metadata', constants.SERIALIZED_METADATA_FILE)
-		with open(args.metadata_path) as f:
-			args.metadata = cPickle.load(f)
+			args.sim_path, 'metadata', constants.JSON_METADATA_FILE)
+		args.metadata = filepath.read_json_file(args.metadata_path)
 
 		if 'variant_dir' in args:
 			args.variant_dir_name, variant_type, variant_index = args.variant_dir
@@ -89,17 +109,18 @@ class AnalysisBase(scriptBase.ScriptBase):
 			metadata['variant_function'] = variant_type
 			metadata['variant_index'] = variant_index
 
-		return args
+		args.cpus = parallelization.cpus(args.cpus)
 
 
 class TestAnalysis(AnalysisBase):
 	"""To test out the command line parser."""
 
 	def __init__(self):
-		super(TestAnalysis, self).__init__(analysis_plotter=self)
+		self.plot = AnalysisPlot()
+		super(TestAnalysis, self).__init__(analysis_plotter=self.plot)
 
 	def run(self, analysis_args):
-		print "[TEST] Analysis args:", analysis_args
+		print("[TEST] Analysis args:", analysis_args)
 
 
 if __name__ == '__main__':

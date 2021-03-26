@@ -1,9 +1,11 @@
 set -e
 
-module load wcEcoli/sherlock2
-pyenv local wcEcoli-paper
+module load wcEcoli/python3
+pyenv local wcEcoli3
 
-make clean
-make compile
+make clean compile
 
-PYTHONPATH=$PWD:$PYTHONPATH nosetests -a 'smalltest' --with-xunit --with-coverage --cover-package=wholecell --cover-xml
+PYTHONPATH=$PWD:$PYTHONPATH pytest --cov=wholecell --cov-report xml \
+    --junitxml=unittests.xml
+
+runscripts/debug/mypy.sh

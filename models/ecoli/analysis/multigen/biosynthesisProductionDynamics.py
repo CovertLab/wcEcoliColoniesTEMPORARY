@@ -1,20 +1,14 @@
 """
 Plot the protein and RNA levels, as well as synthesis probabilities,
 for regulated genes that are involved in AA biosynthesis
-
-@author: Derek Macklin
-@organization: Covert Lab, Department of Bioengineering, Stanford University
-@date: Created 6/17/2016
 """
 
-from __future__ import absolute_import
-from __future__ import division
+from __future__ import absolute_import, division, print_function
 
 import os
 
 import numpy as np
 from matplotlib import pyplot as plt
-import cPickle
 
 from wholecell.io.tablereader import TableReader
 from models.ecoli.analysis.AnalysisPaths import AnalysisPaths
@@ -24,18 +18,9 @@ from models.ecoli.analysis import multigenAnalysisPlot
 
 class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 	def do_plot(self, seedOutDir, plotOutDir, plotOutFileName, simDataFile, validationDataFile, metadata):
-		if not os.path.isdir(seedOutDir):
-			raise Exception, "seedOutDir does not currently exist as a directory"
-
-		if not os.path.exists(plotOutDir):
-			os.mkdir(plotOutDir)
-
 		ap = AnalysisPaths(seedOutDir, multi_gen_plot = True)
 
 		allDirs = ap.get_cells()
-
-		# Load data from KB
-		sim_data = cPickle.load(open(simDataFile, "rb"))
 
 		tfs = [
 			"putA", "aldA", "gdhA", "carA", "carB", "argD",
@@ -135,13 +120,16 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 			bulkMoleculesReader = TableReader(os.path.join(simOutDir, "BulkMolecules"))
 			bulkMoleculeIds = bulkMoleculesReader.readAttribute("objectNames")
 			bulkMoleculeCounts = bulkMoleculesReader.readColumn("counts")
-			bulkMoleculesReader.close()
+
+			# Load data from mRNA counts listener
+			mRNA_counts_reader = TableReader(os.path.join(simOutDir, 'mRNACounts'))
+			all_mRNA_ids = mRNA_counts_reader.readAttribute('mRNA_ids')
+			mRNA_counts = mRNA_counts_reader.readColumn('mRNA_counts')
 
 			# Get the synthesis probability for all regulated genes
 			rnaSynthProbReader = TableReader(os.path.join(simOutDir, "RnaSynthProb"))
 			rnaSynthProbIds = rnaSynthProbReader.readAttribute("rnaIds")
 			synthProbs = rnaSynthProbReader.readColumn("rnaSynthProb")
-			rnaSynthProbReader.close()
 
 			for tfIdx, tf in enumerate(tfs):
 				monomerId = tfToMonomerId[tf]
@@ -155,8 +143,8 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 					monomerCounts += (tfToComplexStoich[tf] * complexCounts)
 
 				rnaId = tfToRNAId[tf]
-				rnaIdx = bulkMoleculeIds.index(rnaId)
-				rnaCounts = bulkMoleculeCounts[:, rnaIdx].copy()
+				rnaIdx = all_mRNA_ids.index(rnaId)
+				rnaCounts = mRNA_counts[:, rnaIdx].copy()
 
 				synthProbIdx = rnaSynthProbIds.index(rnaId)
 				synthProb = synthProbs[:, synthProbIdx].copy()
@@ -167,7 +155,7 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 				synthProbMA = np.convolve(synthProb, np.ones(width) / width, mode = "same")
 
 				##############################################################
-				ax = plt.subplot(nTfs, 3, tfIdx * 3 + 1)
+				ax = self.subplot(nTfs, 3, tfIdx * 3 + 1)
 				ax.plot(time, monomerCounts, color = "b")
 				plt.title("%s counts" % monomerId, fontsize = 8)
 
@@ -182,7 +170,7 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 				##############################################################
 
 				##############################################################
-				ax = plt.subplot(nTfs, 3, tfIdx * 3 + 2)
+				ax = self.subplot(nTfs, 3, tfIdx * 3 + 2)
 				ax.plot(time, rnaCounts, color = "b")
 				plt.title("%s counts" % rnaId, fontsize = 8)
 
@@ -197,7 +185,7 @@ class Plot(multigenAnalysisPlot.MultigenAnalysisPlot):
 				##############################################################
 
 				##############################################################
-				ax = plt.subplot(nTfs, 3, tfIdx * 3 + 3)
+				ax = self.subplot(nTfs, 3, tfIdx * 3 + 3)
 				ax.plot(time, synthProb, color = "b")
 				ax.plot(time, synthProbMA, color = "k")
 				plt.title("%s synth prob" % rnaId, fontsize = 8)

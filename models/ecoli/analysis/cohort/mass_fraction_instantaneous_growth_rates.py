@@ -1,13 +1,7 @@
-"""
-@organization: Covert Lab, Department of Bioengineering, Stanford University
-@date: Created 1/19/2017
-"""
-
-from __future__ import absolute_import
+from __future__ import absolute_import, division, print_function
 
 import os
 import numpy as np
-import cPickle
 from matplotlib import pyplot as plt
 from models.ecoli.analysis.AnalysisPaths import AnalysisPaths
 from wholecell.io.tablereader import TableReader
@@ -31,11 +25,6 @@ def seriesScrubber(series, factor):
 
 class Plot(cohortAnalysisPlot.CohortAnalysisPlot):
 	def do_plot(self, seedOutDir, plotOutDir, plotOutFileName, simDataFile, validationDataFile, metadata):
-		if not os.path.isdir(seedOutDir):
-			raise Exception, "seedOutDir does not currently exist as a directory"
-		if not os.path.exists(plotOutDir):
-			os.mkdir(plotOutDir)
-
 		ap = AnalysisPaths(seedOutDir, cohort_plot = True)
 
 		# Get all cells
@@ -67,10 +56,12 @@ class Plot(cohortAnalysisPlot.CohortAnalysisPlot):
 
 		for gen, simDir in enumerate(allDir):
 			simOutDir = os.path.join(simDir, "simOut")
-			time = TableReader(os.path.join(simOutDir, "Main")).readColumn("time")
-			timeStep = TableReader(os.path.join(simOutDir, "Main")).readColumn("timeStepSec")
-			mass = TableReader(os.path.join(simOutDir, "Mass"))
 
+			main_reader = TableReader(os.path.join(simOutDir, "Main"))
+			time = main_reader.readColumn("time")
+			timeStep = main_reader.readColumn("timeStepSec")
+
+			mass = TableReader(os.path.join(simOutDir, "Mass"))
 			cellMass = mass.readColumn("cellMass")
 			proteinMass = mass.readColumn("proteinMass")
 			rnaMass = mass.readColumn("rnaMass")
@@ -120,15 +111,15 @@ class Plot(cohortAnalysisPlot.CohortAnalysisPlot):
 			axes.tick_params(
 				axis='x',          # changes apply to the x-axis
 				which='both',      # both major and minor ticks are affected
-				bottom='off',      # ticks along the bottom edge are off
-				top='off',         # ticks along the top edge are off
-				labelbottom='off') # labels along the bottom edge are off
+				bottom=False,      # ticks along the bottom edge are off
+				top=False,         # ticks along the top edge are off
+				labelbottom=False) # labels along the bottom edge are off
 			axes.tick_params(
 				axis='y',          # changes apply to the x-axis
 				which='both',      # both major and minor ticks are affected
-				left='off',      # ticks along the bottom edge are off
-				right='off',         # ticks along the top edge are off
-				labelleft='off') # labels along the bottom edge are off
+				left=False,        # ticks along the bottom edge are off
+				right=False,       # ticks along the top edge are off
+				labelleft=False)   # labels along the bottom edge are off
 
 			axes.set_xlabel("")
 			axes.set_ylabel("")
@@ -155,10 +146,12 @@ class Plot(cohortAnalysisPlot.CohortAnalysisPlot):
 
 		for gen, simDir in enumerate(allDir):
 			simOutDir = os.path.join(simDir, "simOut")
-			time = TableReader(os.path.join(simOutDir, "Main")).readColumn("time")
-			timeStep = TableReader(os.path.join(simOutDir, "Main")).readColumn("timeStepSec")
-			mass = TableReader(os.path.join(simOutDir, "Mass"))
 
+			main_reader = TableReader(os.path.join(simOutDir, "Main"))
+			time = main_reader.readColumn("time")
+			timeStep = main_reader.readColumn("timeStepSec")
+
+			mass = TableReader(os.path.join(simOutDir, "Mass"))
 			cellMass = mass.readColumn("cellMass")
 			proteinMass = mass.readColumn("proteinMass")
 			rnaMass = mass.readColumn("rnaMass")
@@ -207,15 +200,15 @@ class Plot(cohortAnalysisPlot.CohortAnalysisPlot):
 			axes.tick_params(
 				axis='x',          # changes apply to the x-axis
 				which='both',      # both major and minor ticks are affected
-				bottom='off',      # ticks along the bottom edge are off
-				top='off',         # ticks along the top edge are off
-				labelbottom='off') # labels along the bottom edge are off
+				bottom=False,      # ticks along the bottom edge are off
+				top=False,         # ticks along the top edge are off
+				labelbottom=False) # labels along the bottom edge are off
 			axes.tick_params(
 				axis='y',          # changes apply to the x-axis
 				which='both',      # both major and minor ticks are affected
-				left='off',      # ticks along the bottom edge are off
-				right='off',         # ticks along the top edge are off
-				labelleft='off') # labels along the bottom edge are off
+				left=False,        # ticks along the bottom edge are off
+				right=False,       # ticks along the top edge are off
+				labelleft=False)   # labels along the bottom edge are off
 
 			axes.set_xlabel("")
 			axes.set_ylabel("")
